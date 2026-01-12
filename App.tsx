@@ -3,7 +3,7 @@ import { Book, Note, UserSettings, ExternalBook, ThemeType } from './types';
 import * as storage from './services/storageService';
 import Library from './components/Library';
 import Reader from './components/Reader';
-import { Search, Download, BookOpen, X, Loader2 } from 'lucide-react';
+import { Search, Download, BookOpen, X, Loader2, Library as LibraryIcon, ArrowRight } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'library' | 'reader' | 'search'>('library');
@@ -18,7 +18,7 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<{note: Note, book: Book | undefined}[]>([]);
   const [externalResults, setExternalResults] = useState<ExternalBook[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // Global loading state for downloads
+  const [isLoading, setIsLoading] = useState(false);
 
   // 1. 初始化讀取
   useEffect(() => {
@@ -39,7 +39,7 @@ const App: React.FC = () => {
     storage.saveSettings(newSettings);
   };
 
-  // 3. 處理書籍匯入 (IndexedDB 儲存)
+  // 3. 處理書籍匯入
   const handleAddBook = async (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -60,7 +60,7 @@ const App: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  // 4. 搜尋功能 (整合本地筆記與線上資源)
+  // 4. 搜尋功能
   useEffect(() => {
     const performSearch = async () => {
       if (searchQuery.trim().length < 2) {
@@ -71,10 +71,9 @@ const App: React.FC = () => {
 
       setIsSearching(true);
       try {
-        // 同時啟動本地與線上搜尋
         const [localNotes, onlineBooks] = await Promise.all([
           storage.searchGlobalNotes(searchQuery),
-          storage.searchFreeBooks(searchQuery) // 需在 storageService 實作 API 呼叫
+          storage.searchFreeBooks(searchQuery)
         ]);
         
         setSearchResults(localNotes);
@@ -90,9 +89,8 @@ const App: React.FC = () => {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // 5. 下載並自動入庫
+  // 5. 下載邏輯
   const handleDownloadAndAdd = async (externalBook: ExternalBook) => {
-    // 檢查是否為 Mock 數據 (無效連結)
     if (externalBook.downloadUrl === '#' || externalBook.downloadUrl.includes('mock-haodoo')) {
       alert("⚠️ 目前顯示的是預覽資料（API 未連接）。\n\n請確保專案已正確部署到 Vercel，且 /api/search 與 /api/download 運作正常。");
       return;
@@ -103,22 +101,19 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // 透過後端 API 獲取檔案 (避免跨域 CORS 問題)
       const downloadApiUrl = `/api/download?url=${encodeURIComponent(externalBook.downloadUrl)}`;
       const response = await fetch(downloadApiUrl);
       
       if (!response.ok) throw new Error('下載伺服器回應錯誤');
       
-      // 將下載回來的資料轉成 ArrayBuffer
       const arrayBuffer = await response.arrayBuffer();
       
-      // 封裝成 Book 物件並存入 IndexedDB
       const newBook: Book = {
-        id: externalBook.id, // 使用外部 ID
+        id: externalBook.id,
         title: externalBook.title,
         author: externalBook.author,
         data: arrayBuffer, 
-        source: externalBook.source.toLowerCase() as any, // 確保格式符合定義
+        source: externalBook.source.toLowerCase() as any,
         addedAt: Date.now()
       };
 
@@ -129,7 +124,7 @@ const App: React.FC = () => {
       setCurrentView('library');
     } catch (err) {
       console.error(err);
-      alert("一鍵下載失敗。原因：跨域限制或來源失效。請嘗試手動匯入。");
+      alert("一鍵下載失敗。原因：跨域限制或來源失效。");
     } finally {
       setIsLoading(false);
     }
@@ -141,89 +136,131 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-stone-50 font-sans text-stone-900 overflow-hidden flex flex-col">
+    <div className="h-screen w-screen bg-zen-paper font-serif text-stone-900 overflow-hidden flex flex-col">
       
-      {/* 全局 Loading 遮罩 */}
+      {/* Loading Overlay with Backdrop Blur */}
       {isLoading && (
-        <div className="absolute inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center flex-col text-white">
-          <Loader2 size={48} className="animate-spin mb-4" />
-          <p className="text-lg font-serif">正在從雲端下載書籍...</p>
+        <div className="absolute inset-0 z-[60] bg-stone-900/30 backdrop-blur-md flex items-center justify-center flex-col text-white animate-in fade-in duration-300">
+          <div className="bg-white/10 p-10 rounded-[2rem] border border-white/20 shadow-2xl flex flex-col items-center backdrop-blur-xl">
+            <Loader2 size={48} className="animate-spin mb-6 text-parchment" />
+            <p className="text-xl font-serif font-medium tracking-wide">正在將書籍加入書櫃...</p>
+          </div>
         </div>
       )}
 
-      {/* 搜尋介面層 (Overlay) */}
+      {/* Modern Glassmorphism Search Overlay */}
       {currentView === 'search' && (
-        <div className="absolute inset-0 z-50 bg-white/98 backdrop-blur-md p-6 overflow-y-auto animate-in fade-in duration-200">
-          <div className="max-w-2xl mx-auto mt-8 pb-24">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-serif font-bold text-stone-800">搜尋與探索</h2>
-              <button onClick={() => setCurrentView('library')} className="p-2 hover:bg-stone-100 rounded-full transition-colors">
-                <X size={28} className="text-stone-400" />
-              </button>
-            </div>
+        <div className="absolute inset-0 z-50 bg-[#F8F5F0]/95 backdrop-blur-xl transition-all animate-in slide-in-from-bottom-[5%] duration-300 flex flex-col">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-6 md:p-12">
+            <div className="max-w-3xl mx-auto mt-4 pb-32">
+              <div className="flex justify-between items-center mb-10">
+                <h2 className="text-3xl font-serif font-bold text-stone-800 flex items-center gap-3">
+                    探索
+                </h2>
+                <button 
+                    onClick={() => setCurrentView('library')} 
+                    className="p-4 bg-white hover:bg-stone-100 rounded-full transition-colors text-stone-500 shadow-sm"
+                >
+                  <X size={26} />
+                </button>
+              </div>
 
-            <div className="relative mb-10">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={22} />
-              <input 
-                type="text"
-                placeholder="搜尋書名、作者或筆記內容..." 
-                className="w-full pl-12 pr-4 py-4 rounded-2xl border-none bg-stone-100 focus:ring-2 focus:ring-stone-300 text-xl shadow-inner"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-              />
-              {isSearching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 animate-spin" size={20} />}
-            </div>
-
-            <div className="space-y-10">
-              {/* 本地筆記結果 */}
-              <section>
-                <h3 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-4">我的筆記 ({searchResults.length})</h3>
-                <div className="space-y-4">
-                  {searchResults.map((res) => (
-                    <div 
-                      key={res.note.id} 
-                      onClick={() => { setActiveBook(res.book!); setCurrentView('reader'); }}
-                      className="p-5 bg-stone-50 border border-stone-200 rounded-2xl hover:shadow-md transition-all cursor-pointer group"
-                    >
-                      <p className="font-serif text-lg text-stone-800 italic mb-3">"{res.note.text}"</p>
-                      {res.note.annotation && <p className="text-sm text-stone-500 bg-stone-200/50 p-3 rounded-lg mb-3">💡 {res.note.annotation}</p>}
-                      <div className="flex items-center gap-2 text-xs text-stone-400">
-                        <BookOpen size={14} /> <span>{res.book?.title}</span>
-                      </div>
-                    </div>
-                  ))}
+              {/* Enhanced Input Field: Rounded, Inner Shadow, No Border */}
+              <div className="relative mb-16 group">
+                <input 
+                  type="text"
+                  placeholder="搜尋書名、作者或筆記關鍵字..." 
+                  className="w-full pl-8 pr-16 py-6 rounded-full bg-stone-200/50 focus:bg-white shadow-inner focus:shadow-lg transition-all outline-none text-xl font-serif placeholder:font-sans placeholder:text-stone-400 text-stone-800"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  autoFocus
+                />
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">
+                    {isSearching ? <Loader2 className="animate-spin" size={24} /> : <Search size={24} />}
                 </div>
-              </section>
+              </div>
 
-              {/* 線上資源結果 */}
-              {searchQuery.length > 1 && (
-                <section>
-                  <h3 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-4">線上書庫探索 ({externalResults.length})</h3>
-                  <div className="space-y-3">
-                    {externalResults.map(book => (
-                      <div key={book.id} className="flex items-center justify-between p-5 bg-white border border-stone-200 rounded-2xl shadow-sm">
-                        <div className="flex-1">
-                          <h4 className="font-bold text-stone-800">{book.title}</h4>
-                          <p className="text-sm text-stone-400">{book.author} · <span className="text-blue-500">{book.source}</span></p>
-                        </div>
-                        <button 
-                          onClick={() => handleDownloadAndAdd(book)}
-                          className="ml-4 p-3 bg-stone-800 text-white rounded-xl hover:bg-stone-700 active:scale-90 transition-all"
-                        >
-                          <Download size={20} />
-                        </button>
-                      </div>
-                    ))}
+              {searchQuery.length < 2 && (
+                  <div className="text-center text-stone-400 mt-24 opacity-50">
+                      <BookOpen size={64} className="mx-auto mb-6" />
+                      <p className="text-sm tracking-[0.2em] uppercase font-bold">Type to Explore</p>
                   </div>
-                </section>
               )}
+
+              <div className="space-y-16">
+                {/* Local Notes Results - Card Style with Breathing Room */}
+                {searchResults.length > 0 && (
+                    <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <h3 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-6 ml-2">我的筆記 ({searchResults.length})</h3>
+                        <div className="grid gap-6">
+                        {searchResults.map((res) => (
+                            <div 
+                            key={res.note.id} 
+                            onClick={() => { setActiveBook(res.book!); setCurrentView('reader'); }}
+                            className="p-8 bg-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all cursor-pointer group border border-stone-50"
+                            >
+                                <div className="flex gap-6">
+                                    <div className="w-1.5 bg-yellow-300/60 rounded-full self-stretch"></div>
+                                    <div className="flex-1">
+                                        <p className="font-serif text-xl text-stone-800 leading-loose italic mb-4 text-justify">
+                                            "{res.note.text}"
+                                        </p>
+                                        {res.note.annotation && (
+                                            <div className="text-base text-stone-600 bg-[#F8F5F0] p-4 rounded-xl mb-4 inline-block">
+                                                <span className="font-bold text-stone-400 text-xs mr-3 uppercase tracking-wider">Note</span>
+                                                {res.note.annotation}
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-2 text-sm text-stone-400 font-sans mt-2 font-medium">
+                                            <span className="group-hover:text-stone-700 transition-colors border-b border-transparent group-hover:border-stone-300 pb-0.5">
+                                                《{res.book?.title}》
+                                            </span>
+                                            <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* External Results - List Style with Soft Buttons */}
+                {externalResults.length > 0 && (
+                  <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+                    <h3 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-6 ml-2">線上書庫 ({externalResults.length})</h3>
+                    <div className="grid gap-4">
+                      {externalResults.map(book => (
+                        <div key={book.id} className="flex items-center justify-between p-5 pl-8 bg-white/60 rounded-[2rem] hover:bg-white transition-colors">
+                          <div className="flex-1">
+                            <h4 className="font-bold font-serif text-xl text-stone-800">{book.title}</h4>
+                            <p className="text-sm text-stone-500 mt-2 flex items-center gap-3 font-medium">
+                                {book.author}
+                                <span className="w-1 h-1 rounded-full bg-stone-300"></span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${book.source === 'Demo' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                    {book.source}
+                                </span>
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => handleDownloadAndAdd(book)}
+                            className="ml-6 px-6 py-3 bg-stone-100 text-stone-600 rounded-full hover:bg-stone-800 hover:text-white transition-all font-medium text-sm flex items-center gap-2"
+                          >
+                            <Download size={18} />
+                            下載
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 主要視圖渲染 */}
+      {/* View Controller */}
       {currentView === 'reader' && activeBook ? (
         <Reader 
           bookData={activeBook} 
@@ -235,13 +272,17 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-hidden relative">
             <Library 
                 books={books} 
+                externalResults={externalResults}
+                isSearching={isSearching}
                 onOpenBook={(book) => { setActiveBook(book); setCurrentView('reader'); }}
                 onAddBook={handleAddBook}
+                onDownloadBook={handleDownloadAndAdd}
+                onTriggerSearch={handleSearchClick}
             />
-            {/* 懸浮搜尋按鈕 (iPad 底部操作區域) */}
+            {/* Floating Search Button - Larger for iPad */}
             <button 
                 onClick={handleSearchClick}
-                className="absolute bottom-8 right-8 w-16 h-16 bg-stone-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40"
+                className="hidden md:flex absolute bottom-10 right-10 w-16 h-16 bg-stone-900 text-[#F8F5F0] rounded-full shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] items-center justify-center hover:scale-110 hover:-translate-y-2 active:scale-95 transition-all z-40 border border-stone-700/50"
             >
                 <Search size={28} />
             </button>

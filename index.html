@@ -4,61 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>ZenReader</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📖</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              parchment: '#F4ECD8',
-              'parchment-dark': '#E8DECA',
-              'eye-green': '#C7EDCC',
-              'eye-green-dark': '#B0D6B5',
-              'soft-black': '#3C3C3C',
-              'ink': '#3C3C3C',
-            },
-            fontFamily: {
-              serif: ['"Noto Serif TC"', 'serif'],
-            },
-            boxShadow: {
-              'book': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 20px rgba(0,0,0,0.05)',
-            }
-          }
-        }
-      }
-    </script>
-    <style>
-      /* Hide scrollbar for cleaner reading experience */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-    </style>
   <script type="importmap">
 {
   "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "epubjs": "https://esm.sh/epubjs@^0.3.93",
     "idb": "https://esm.sh/idb@^8.0.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "epubjs": "https://esm.sh/epubjs@^0.3.93",
+    "@vercel/node": "https://esm.sh/@vercel/node@^5.5.16",
     "axios": "https://esm.sh/axios@^1.13.2",
     "iconv-lite": "https://esm.sh/iconv-lite@^0.7.2",
-    "@vercel/node": "https://esm.sh/@vercel/node@^5.5.16",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.1"
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-100 h-screen w-screen overflow-hidden selection:bg-yellow-200 selection:text-black">
+  <body class="bg-stone-50 h-screen w-screen overflow-hidden selection:bg-yellow-200 selection:text-black">
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

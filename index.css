@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-serif text-stone-800 bg-zen-paper antialiased;
+  }
+}
+
+/* Custom 3D Book Shadow for iPad Realism */
+.shadow-book-3d {
+  box-shadow: 
+    inset 1px 0px 0px rgba(255,255,255,0.5), /* Highlight on edge */
+    inset 3px 0 6px rgba(0,0,0,0.05),        /* Subtle inner spine shadow */
+    5px 10px 20px -5px rgba(0,0,0,0.15),     /* Drop shadow close */
+    15px 15px 35px -5px rgba(0,0,0,0.1);     /* Drop shadow diffuse */
+}
+
+.spine-crease {
+  background: linear-gradient(
+    90deg, 
+    rgba(0,0,0,0.08) 0%, 
+    rgba(0,0,0,0.02) 10%, 
+    rgba(255,255,255,0.2) 15%, 
+    rgba(0,0,0,0) 100%
+  );
+}
+
+/* Hide scrollbar for cleaner reading experience */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
