@@ -1,27 +1,31 @@
 {
-  "name": "zen-reader",
+  "name": "zenreader-ipad",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.6.0",
+    "@vercel/node": "^5.5.16",
+    "axios": "^1.13.2",
     "epubjs": "^0.3.93",
-    "iconv-lite": "^0.6.3",
-    "idb": "^8.0.0",
-    "lucide-react": "^0.292.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "iconv-lite": "^0.7.2",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^4.4.0"
+    "@types/node": "^20.12.7",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10"
   }
 }
