@@ -89,9 +89,8 @@ const App: React.FC = () => {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // 5. 下載邏輯 (修復版)
+  // 5. 下載邏輯 (修復版 - 加入檔案大小檢查)
   const handleDownloadAndAdd = async (externalBook: ExternalBook) => {
-    // 移除阻擋 Mock 的邏輯，讓使用者可以測試 API
     
     const confirmDownload = window.confirm(`是否下載並收藏《${externalBook.title}》？`);
     if (!confirmDownload) return;
@@ -116,11 +115,20 @@ const App: React.FC = () => {
       
       // 2. 轉換為 ArrayBuffer
       const arrayBuffer = await response.arrayBuffer();
-      console.log("📦 Received Data Size:", arrayBuffer.byteLength, "bytes");
+      const fileSize = arrayBuffer.byteLength;
+      console.log("📦 Received Data Size:", fileSize, "bytes");
 
-      if (arrayBuffer.byteLength < 1000) {
-          console.warn("⚠️ Warning: File size too small, might be an error page.");
-          alert("警告：下載的檔案過小，可能不是有效的 EPUB 檔案。");
+      // --- 嚴格檢查：阻擋空檔案或過小的錯誤頁面 ---
+      if (fileSize === 0) {
+          console.warn("⚠️ Error: Empty file received (0 bytes).");
+          alert("下載失敗：這本書可能僅提供音頻或連結無效 (0 bytes)。");
+          return; // 終止，不存入資料庫
+      }
+
+      if (fileSize < 2000) { // 提高標準到 2KB，一般的 EPUB 至少幾十KB
+          console.warn("⚠️ Warning: File size too small, likely an error page.");
+          alert("警告：下載的檔案過小，可能不是有效的 EPUB 檔案，或者是好讀網的錯誤頁面。");
+          return; // 終止
       }
       
       // 3. 封裝成書本物件

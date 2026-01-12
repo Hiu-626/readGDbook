@@ -27,6 +27,18 @@
   );
 }
 
+/* EPUB Reader Specific Overrides */
+/* 讓 Epubjs 的 iframe 內容能正確居中並隱藏預設卷軸 */
+.epub-container {
+    min-width: 100%;
+    height: 100%;
+}
+
+.epub-view > iframe {
+    background-color: transparent !important;
+    border: none !important;
+}
+
 /* Hide scrollbar for cleaner reading experience */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

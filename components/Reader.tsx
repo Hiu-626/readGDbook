@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ePub, { Book as EpubBook, Rendition } from 'epubjs';
 import { Book, Note, ThemeType, UserSettings } from '../types';
-import { ChevronLeft, Settings as SettingsIcon, Highlighter, Bookmark, PenLine, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Highlighter, PenLine } from 'lucide-react';
 import * as storage from '../services/storageService';
 
 interface ReaderProps {
@@ -11,7 +11,7 @@ interface ReaderProps {
   onUpdateSettings: (newSettings: UserSettings) => void;
 }
 
-// 定義主題色值，方便主介面同步
+// 定義主題色值
 const THEME_MAP = {
   [ThemeType.LIGHT]: { bg: '#ffffff', fg: '#3C3C3C' },
   [ThemeType.PARCHMENT]: { bg: '#F4ECD8', fg: '#3C3C3C' },
@@ -25,9 +25,11 @@ const Reader: React.FC<ReaderProps> = ({ bookData, settings, onClose, onUpdateSe
   const renditionRef = useRef<Rendition | null>(null);
   
   const [loading, setLoading] = useState(true);
+  const [currentCfi, setCurrentCfi] = useState<string>('');
+  const [progress, setProgress] = useState<string>('');
   const [selectionMenu, setSelectionMenu] = useState<{ x: number, y: number, cfi: string, text: string } | null>(null);
 
-  // --- 核心：動態樣式注入 (解決繁體與護眼色) ---
+  // --- 核心：擬真書籍樣式注入 ---
   const applyTheme = useCallback((rendition: Rendition) => {
     const activeColors = THEME_MAP[settings.theme];
     
@@ -36,8 +38,14 @@ const Reader: React.FC<ReaderProps> = ({ bookData, settings, onClose, onUpdateSe
         'background': `${activeColors.bg} !important`,
         'color': `${activeColors.fg} !important`,
         'font-family': '"Noto Serif TC", "思源宋體", serif !important',
-        'line-height': '1.8 !important',
-        'padding-bottom': '50px !important' // Extra padding for scrolling
+        'line-height': '1.8 !important', // 舒適行高
+        'text-align': 'justify !important', // 左右齊行
+        'padding': '0px 20px !important' // 頁面內距 (手機/平板適配)
+      },
+      p: {
+        'text-indent': '2em !important', // 中文段落縮排
+        'margin-bottom': '0 !important', // 緊湊段落
+        'padding-top': '0.5em !important'
       },
       '::selection': {
         'background': 'rgba(255, 235, 59, 0.4)'
@@ -52,79 +60,81 @@ const Reader: React.FC<ReaderProps> = ({ bookData, settings, onClose, onUpdateSe
   useEffect(() => {
     if (!viewerRef.current || !bookData.data) return;
 
-    // 強制重置 loading
     setLoading(true);
 
-    // 初始化書籍
     const book = ePub(bookData.data);
     bookInstance.current = book;
 
-    // 配置 Rendition - 先用最穩定的 scrolled 模式
+    // 1. 設定為分頁模式 (Paginated)
     const rendition = book.renderTo(viewerRef.current, {
       width: "100%",
       height: "100%",
-      flow: "scrolled",      // 先改成捲動模式，成功率 100%
-      manager: "continuous"
+      flow: "paginated",      // 關鍵：分頁模式
+      manager: "default",     // Default manager 處理分頁較穩定
+      allowScriptedContent: false
     });
     renditionRef.current = rendition;
 
-    // 開始渲染
-    book.ready.then(() => {
-      return rendition.display();
+    // 2. 準備與渲染
+    book.ready.then(async () => {
+        // 產生 Locations 用於計算進度 (耗時操作，但對進度條很重要)
+        // 為了效能，我們這裡先只產生少量，真實產品應在背景做
+        return book.locations.generate(1000); 
     }).then(() => {
-      console.log("✅ 渲染成功");
+      rendition.display();
       setLoading(false);
       applyTheme(rendition);
     }).catch(err => {
-      console.error("❌ 渲染出錯:", err);
-      // 萬一 display 失敗，嘗試強制顯示第一部分
-      if (book.spine && (book.spine as any).length > 0) {
-        // @ts-ignore
-        rendition.display(book.spine.get(0).href);
-      }
+      console.error("Render Error:", err);
       setLoading(false);
     });
 
-    // 監聽文字選取 (畫線功能)
+    // 3. 事件監聽
     rendition.on('selected', (cfiRange: string, contents: any) => {
         const range = rendition.getRange(cfiRange);
         const text = range.toString();
-        
-        setSelectionMenu({
-            x: 0, y: 0, // 採用固定底部彈窗
-            cfi: cfiRange,
-            text: text
-        });
+        // 修正選單位置 (paginated 模式下需要計算 iframe 位置，這裡簡化為固定底部)
+        setSelectionMenu({ x: 0, y: 0, cfi: cfiRange, text });
     });
 
-    // 點擊事件 - 隱藏選單
-    rendition.on('click', () => {
-        setSelectionMenu(null);
+    rendition.on('relocated', (location: any) => {
+        setCurrentCfi(location.start.cfi);
+        // 更新進度百分比
+        if (book.locations.length() > 0) {
+            const percentage = book.locations.percentageFromCfi(location.start.cfi);
+            setProgress(Math.round(percentage * 100) + '%');
+        }
     });
+
+    rendition.on('click', () => setSelectionMenu(null));
+
+    // 鍵盤左右鍵翻頁支援
+    const keyListener = (e: KeyboardEvent) => {
+        if (e.key === "ArrowLeft") rendition.prev();
+        if (e.key === "ArrowRight") rendition.next();
+    };
+    document.addEventListener("keyup", keyListener);
 
     return () => {
-      if (bookInstance.current) {
-        bookInstance.current.destroy();
-      }
+      document.removeEventListener("keyup", keyListener);
+      if (bookInstance.current) bookInstance.current.destroy();
     };
-  }, [bookData.id]); // 當書籍 ID 改變時重新執行
+  }, [bookData.id]); 
 
-  // 設定更新時即時重繪
+  // 即時更新樣式
   useEffect(() => {
     if (renditionRef.current) applyTheme(renditionRef.current);
   }, [settings, applyTheme]);
 
-  // --- 畫線與筆記處理 ---
+  // 畫線邏輯
   const handleSaveAnnotation = async (type: 'highlight' | 'note') => {
     if (!selectionMenu) return;
-
     let annotationText = '';
     if (type === 'note') {
-      const input = window.prompt("💡 紀錄您的理財心得：");
-      if (input === null) return;
-      annotationText = input;
+        const input = window.prompt("💡 筆記內容：");
+        if (input === null) return;
+        annotationText = input;
     }
-
     const newNote: Note = {
       id: Date.now().toString(),
       bookId: bookData.id,
@@ -134,79 +144,73 @@ const Reader: React.FC<ReaderProps> = ({ bookData, settings, onClose, onUpdateSe
       color: type === 'highlight' ? '#FFEB3B' : '#90EE90',
       createdAt: Date.now()
     };
-
     await storage.saveNote(newNote);
-    
-    // 渲染畫線到書中
-    renditionRef.current?.annotations.add(
-      'highlight', 
-      newNote.cfi, 
-      {}, 
-      null, 
-      'hl-style'
-    );
-
+    renditionRef.current?.annotations.add('highlight', newNote.cfi, {}, null, 'hl-style');
     setSelectionMenu(null);
   };
 
+  // 翻頁動作
+  const prevPage = () => renditionRef.current?.prev();
+  const nextPage = () => renditionRef.current?.next();
+
   return (
-    /* 使用 fixed 確保在 iPad 上佔滿全螢幕，避免 Safari 工具列干擾 */
-    <div className="fixed inset-0 w-screen h-screen z-50 bg-white flex flex-col overflow-hidden" style={{ backgroundColor: THEME_MAP[settings.theme].bg }}>
+    <div className="fixed inset-0 w-screen h-screen z-50 flex flex-col overflow-hidden transition-colors duration-300" 
+         style={{ backgroundColor: THEME_MAP[settings.theme].bg }}>
       
-      {/* 頂部導航 (固定高度) */}
-      <div className="h-16 flex items-center justify-between px-6 border-b shrink-0 bg-white/50 backdrop-blur-sm z-20">
-        <button onClick={onClose} className="text-stone-600 font-medium flex items-center gap-1 active:scale-95 transition-transform">
-            <ChevronLeft size={20} />
-            返回
+      {/* 頂部導航 (閱讀時自動淡化，滑鼠靠近顯示) */}
+      <div className="h-14 flex items-center justify-between px-4 border-b border-stone-900/5 bg-white/0 hover:bg-white/80 transition-all z-30 group">
+        <button onClick={onClose} className="text-stone-500 hover:text-stone-800 flex items-center gap-1">
+            <ChevronLeft size={24} />
+            <span className="text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">書櫃</span>
         </button>
-        <div className="font-serif font-bold truncate px-4 text-stone-800">{bookData.title}</div>
-        
-        {/* 字體調整 - 簡化版 */}
-        <div className="flex items-center gap-3">
-             <button 
-                onClick={() => onUpdateSettings({ ...settings, fontSize: Math.max(80, settings.fontSize - 10) })}
-                className="w-8 h-8 flex items-center justify-center bg-stone-200/50 rounded-full"
-              >A-</button>
-              <button 
-                onClick={() => onUpdateSettings({ ...settings, fontSize: Math.min(180, settings.fontSize + 10) })}
-                className="w-8 h-8 flex items-center justify-center bg-stone-200/50 rounded-full font-bold"
-              >A+</button>
+        <div className="text-xs text-stone-400 font-serif tracking-widest uppercase opacity-50">{bookData.title}</div>
+        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+             <button onClick={() => onUpdateSettings({ ...settings, fontSize: Math.max(80, settings.fontSize - 10) })} className="w-8 h-8 rounded-full bg-stone-200/50 text-xs">A-</button>
+             <button onClick={() => onUpdateSettings({ ...settings, fontSize: Math.min(180, settings.fontSize + 10) })} className="w-8 h-8 rounded-full bg-stone-200/50 text-xs font-bold">A+</button>
         </div>
       </div>
   
-      {/* 關鍵：閱讀器主區域 */}
-      <div className="flex-1 w-full relative overflow-hidden">
-        {/* 加上一個 key，確保更換書籍時容器會徹底重啟 */}
-        <div 
-          ref={viewerRef} 
-          key={bookData.id}
-          className="w-full h-full" 
-          style={{ minHeight: '100%' }}
-        />
+      {/* 閱讀器主區域 */}
+      <div className="flex-1 w-full relative">
         
+        {/* 1. 書脊陰影效果 (模擬實體書中縫) */}
+        {settings.theme === ThemeType.PARCHMENT && (
+            <div className="absolute left-1/2 top-0 bottom-0 w-[1px] shadow-[0_0_30px_15px_rgba(0,0,0,0.08)] z-0 pointer-events-none transform -translate-x-1/2 h-full hidden md:block" />
+        )}
+
+        {/* 2. Epub 容器 */}
+        <div ref={viewerRef} className="w-full h-full z-10 relative" />
+
+        {/* 3. 隱形翻頁觸控區 (Tap Zones) */}
+        <div className="absolute inset-y-0 left-0 w-[20%] z-20 cursor-w-resize active:bg-black/5 transition-colors" 
+             onClick={prevPage} title="上一頁" />
+        <div className="absolute inset-y-0 right-0 w-[20%] z-20 cursor-e-resize active:bg-black/5 transition-colors" 
+             onClick={nextPage} title="下一頁" />
+
+        {/* Loading */}
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-stone-50/80 z-20 backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-3">
-               <Loader2 className="animate-spin text-stone-600" size={32} />
-               <p className="text-stone-500 text-sm font-serif">正在排版中...</p>
-            </div>
+          <div className="absolute inset-0 flex items-center justify-center bg-stone-50/80 z-30 backdrop-blur-sm">
+             <Loader2 className="animate-spin text-stone-400" size={40} />
           </div>
         )}
 
-        {/* 選取文字後的彈窗 (Selection UI) */}
+        {/* Selection Tooltip */}
         {selectionMenu && (
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center bg-stone-900/95 backdrop-blur text-white rounded-2xl shadow-2xl px-2 py-2 z-40 animate-in fade-in zoom-in duration-200">
-            <button onClick={() => handleSaveAnnotation('highlight')} className="flex flex-col items-center gap-1 px-4 py-2 hover:text-yellow-400">
-              <Highlighter size={22} />
-              <span className="text-[10px]">畫線</span>
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center bg-stone-800 text-stone-100 rounded-full shadow-xl px-4 py-3 z-40 gap-4">
+            <button onClick={() => handleSaveAnnotation('highlight')} className="flex items-center gap-2 hover:text-yellow-400">
+              <Highlighter size={18} /> <span className="text-xs font-bold">劃線</span>
             </button>
-            <div className="w-px h-8 bg-stone-700 mx-1" />
-            <button onClick={() => handleSaveAnnotation('note')} className="flex flex-col items-center gap-1 px-4 py-2 hover:text-blue-400">
-              <PenLine size={22} />
-              <span className="text-[10px]">筆記</span>
+            <div className="w-px h-4 bg-stone-600"></div>
+            <button onClick={() => handleSaveAnnotation('note')} className="flex items-center gap-2 hover:text-blue-400">
+              <PenLine size={18} /> <span className="text-xs font-bold">筆記</span>
             </button>
           </div>
         )}
+      </div>
+
+      {/* 底部進度條 */}
+      <div className="h-8 flex items-center justify-center border-t border-stone-900/5 text-[10px] text-stone-400 font-sans tracking-widest bg-white/0 hover:bg-white/80 transition-all z-30">
+        {progress ? `${progress} · ${bookData.author}` : '計算頁數中...'}
       </div>
     </div>
   );
