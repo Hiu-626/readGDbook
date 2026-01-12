@@ -2,7 +2,9 @@
 export default {
   content: [
     "./index.html",
-    "./**/*.{js,ts,jsx,tsx}",
+    "./*.{js,ts,jsx,tsx}",           // 匹配根目錄下的 App.tsx, index.tsx
+    "./components/**/*.{js,ts,jsx,tsx}", // 匹配組件資料夾
+    "./services/**/*.{js,ts,jsx,tsx}",   // 匹配服務層 (若有使用 class)
   ],
   theme: {
     extend: {
