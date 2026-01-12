@@ -89,25 +89,41 @@ const App: React.FC = () => {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // 5. 下載邏輯
+  // 5. 下載邏輯 (修復版)
   const handleDownloadAndAdd = async (externalBook: ExternalBook) => {
-    if (externalBook.downloadUrl === '#' || externalBook.downloadUrl.includes('mock-haodoo')) {
-      alert("⚠️ 目前顯示的是預覽資料（API 未連接）。\n\n請確保專案已正確部署到 Vercel，且 /api/search 與 /api/download 運作正常。");
-      return;
-    }
-
+    // 移除阻擋 Mock 的邏輯，讓使用者可以測試 API
+    
     const confirmDownload = window.confirm(`是否下載並收藏《${externalBook.title}》？`);
     if (!confirmDownload) return;
 
     setIsLoading(true);
+    console.log("🚀 Starting download process for:", externalBook.title);
+    console.log("🔗 Target URL:", externalBook.downloadUrl);
+
     try {
-      const downloadApiUrl = `/api/download?url=${encodeURIComponent(externalBook.downloadUrl)}`;
-      const response = await fetch(downloadApiUrl);
+      // 1. 呼叫我們自己的 Vercel API 代理
+      const proxyUrl = `/api/download?url=${encodeURIComponent(externalBook.downloadUrl)}`;
+      console.log("📡 Requesting Proxy:", proxyUrl);
+
+      const response = await fetch(proxyUrl);
+      console.log("📥 Response Status:", response.status);
+      console.log("📄 Content-Type:", response.headers.get('Content-Type'));
       
-      if (!response.ok) throw new Error('下載伺服器回應錯誤');
+      if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server Error: ${response.status} - ${errorText}`);
+      }
       
+      // 2. 轉換為 ArrayBuffer
       const arrayBuffer = await response.arrayBuffer();
+      console.log("📦 Received Data Size:", arrayBuffer.byteLength, "bytes");
+
+      if (arrayBuffer.byteLength < 1000) {
+          console.warn("⚠️ Warning: File size too small, might be an error page.");
+          alert("警告：下載的檔案過小，可能不是有效的 EPUB 檔案。");
+      }
       
+      // 3. 封裝成書本物件
       const newBook: Book = {
         id: externalBook.id,
         title: externalBook.title,
@@ -117,14 +133,16 @@ const App: React.FC = () => {
         addedAt: Date.now()
       };
 
+      // 4. 存入 IndexedDB 並更新 UI
       await storage.saveBook(newBook);
-      setBooks(await storage.getBooks());
+      const updatedBooks = await storage.getBooks();
+      setBooks(updatedBooks);
       
-      alert("下載成功！已放入書櫃。");
+      alert(`《${externalBook.title}》下載成功！已放入書櫃。`);
       setCurrentView('library');
     } catch (err) {
-      console.error(err);
-      alert("一鍵下載失敗。原因：跨域限制或來源失效。");
+      console.error("❌ Download Error:", err);
+      alert(`下載失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
     } finally {
       setIsLoading(false);
     }
@@ -158,7 +176,8 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-[60] bg-stone-900/30 backdrop-blur-md flex items-center justify-center flex-col text-white animate-in fade-in duration-300">
           <div className="bg-white/10 p-10 rounded-[2rem] border border-white/20 shadow-2xl flex flex-col items-center backdrop-blur-xl">
             <Loader2 size={48} className="animate-spin mb-6 text-parchment" />
-            <p className="text-xl font-serif font-medium tracking-wide">正在將書籍加入書櫃...</p>
+            <p className="text-xl font-serif font-medium tracking-wide">正在下載與處理書籍...</p>
+            <p className="text-sm text-stone-300 mt-2">請稍候，這可能需要幾秒鐘</p>
           </div>
         </div>
       )}
