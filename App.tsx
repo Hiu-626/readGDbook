@@ -135,6 +135,21 @@ const App: React.FC = () => {
     setSearchQuery('');
   };
 
+  const handleOpenBook = (book: Book) => {
+    if (!book.data) {
+        alert("書籍資料損毀，無法開啟");
+        return;
+    }
+    // Debug log to ensure data valid before opening reader
+    console.log(`Opening book: ${book.title}`, {
+        id: book.id,
+        dataType: book.data.constructor.name,
+        byteLength: (book.data as ArrayBuffer).byteLength
+    });
+    setActiveBook(book);
+    setCurrentView('reader');
+  };
+
   return (
     <div className="h-screen w-screen bg-zen-paper font-serif text-stone-900 overflow-hidden flex flex-col">
       
@@ -196,7 +211,7 @@ const App: React.FC = () => {
                         {searchResults.map((res) => (
                             <div 
                             key={res.note.id} 
-                            onClick={() => { setActiveBook(res.book!); setCurrentView('reader'); }}
+                            onClick={() => handleOpenBook(res.book!)}
                             className="p-8 bg-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all cursor-pointer group border border-stone-50"
                             >
                                 <div className="flex gap-6">
@@ -274,7 +289,7 @@ const App: React.FC = () => {
                 books={books} 
                 externalResults={externalResults}
                 isSearching={isSearching}
-                onOpenBook={(book) => { setActiveBook(book); setCurrentView('reader'); }}
+                onOpenBook={handleOpenBook}
                 onAddBook={handleAddBook}
                 onDownloadBook={handleDownloadAndAdd}
                 onTriggerSearch={handleSearchClick}
