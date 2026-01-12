@@ -92,6 +92,12 @@ const App: React.FC = () => {
 
   // 5. 下載並自動入庫
   const handleDownloadAndAdd = async (externalBook: ExternalBook) => {
+    // 檢查是否為 Mock 數據 (無效連結)
+    if (externalBook.downloadUrl === '#' || externalBook.downloadUrl.includes('mock-haodoo')) {
+      alert("⚠️ 目前顯示的是預覽資料（API 未連接）。\n\n請確保專案已正確部署到 Vercel，且 /api/search 與 /api/download 運作正常。");
+      return;
+    }
+
     const confirmDownload = window.confirm(`是否下載並收藏《${externalBook.title}》？`);
     if (!confirmDownload) return;
 
